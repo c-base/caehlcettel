@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "caehlcettel"
+version = "1.0.0"
+description = "Text-based interace for keeping track of cash"
+authors = ["Uwe Kamper <uk@c-base.org>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+textual = "^0.1.13"
+pyfiglet = "^0.8.post1"
+textual-inputs = "^0.2.1"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2.5"
+flake8 = "^4.0.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

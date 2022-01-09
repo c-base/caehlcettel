@@ -1,0 +1,4 @@
+__pycache__
+*.pyc
+._DS_Store
+textual.log
