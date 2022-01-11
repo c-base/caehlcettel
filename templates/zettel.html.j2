@@ -1,0 +1,80 @@
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+      body {
+        padding-left: 0px;
+        padding-right: 0px;
+        font-family: sans-serif;
+      }
+      h1 {
+        text-align: center;
+      }
+      table {
+        width: 100%;
+        border: none;
+      }
+      table tr td {
+        font-size: 220%;
+        color: black;
+      }
+      .text-right {
+        text-align: right;
+      }
+      .text-center {
+        text-align: center;
+      }
+      .mono {
+        font-size: 260%;
+        font-family: monospace;
+        font-weight: bold;
+      }
+      .signature {
+        vertical-align: top;
+        border: 2px solid black;
+        height: 150px;
+        background-color: #cccccc;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>c-base bar caehlcettel</h1>
+    <table>
+      {% for entry in state %}<tr>
+        <td class="text-right mono">{{ entry.amount }}</td>
+        <td class="text-center"> ✖️ </td>
+        <td class="mono">{{ entry.label }}</td>
+        <td class="text-center"> = </td>
+        <td class="text-right mono">{{ entry.sub_total|round(2)|replace('.', ',') }}</td>
+      </tr>{% endfor %}
+      <tr>
+        <td colspan="5">&nbsp;</td>
+      </tr>
+      <tr>
+        <td colspan="3" class="text-right"><b>cumme&nbsp;</b></td>
+        <td class="text-center"><b> = </b></td>
+        <td class="text-right mono"><u>{{ total|round(2)|replace('.', ',') }}</u></td>
+      </tr>
+      <tr>
+        <td colspan="5">&nbsp;</td>
+      </tr>
+      <tr>
+        <td colspan="3" class="text-right"><b>datum / uhrceit&nbsp;</b></td>
+        <td class="text-center"><b> = </b></td>
+        <td class="text-right"><b>{{ datetime }}</b></td>
+      </tr>
+      <tr>
+        <td colspan="5">&nbsp;</td>
+      </tr>
+      <tr>
+        <td colspan="5">&nbsp;</td>
+      </tr>
+      <tr>
+        <td colspan="5" class="signature">
+          unterc_rift
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

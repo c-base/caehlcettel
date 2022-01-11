@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import tempfile
+import sys
 from decimal import Decimal
 from datetime import datetime
 
@@ -11,6 +13,14 @@ from textual.app import App
 from textual.reactive import Reactive
 from textual.widget import Widget
 from textual.widgets import Header, Footer
+from rendering import print_zettel
+
+
+BACKEND = 'pyusb'
+MODEL = 'QL-700'
+# Find out using lsusb or with the MacOS system report
+# 0x04f9 is the vendor ID, 0x2042 is the model, then the serial number
+PRINTER = 'usb://0x04f9:0x2042/000M3Z986950'
 
 VALUES =  [
     '100,00',
@@ -83,8 +93,36 @@ class HoverApp(App):
         """Bind keys with the app loads (but before entering application mode)"""
         # await self.bind("b", "view.toggle('sidebar')", "Toggle sidebar")
         await self.bind("q", "quit", "Quit")
+        await self.bind("p", "print", "Print & Quit")
 
 
+    async def action_print(self):
+        context = {
+            'state': [],
+            'total': None,
+            'datetime': datetime.now().strftime('%Y-%m-%d, %H:%M Uhr'),
+        }
+        sum = Decimal(0)
+
+        for value in VALUES:
+            if state[value] is None:
+                val = 0
+            else:
+                val = state[value]
+            sub_total = val * Decimal(value.replace(',', '.'))
+            sum += sub_total
+            context['state'].append({
+                'label': value,
+                'amount': val,
+                'sub_total': sub_total
+            })
+        context['total'] = sum
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            print_zettel(context, tmpdir, BACKEND, MODEL, PRINTER)
+            sys.exit(0)
+
+    
     async def on_mount(self) -> None:
         # INIT state
         for value in VALUES:
