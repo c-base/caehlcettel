@@ -1,0 +1,13 @@
+[Unit]
+Description=Network printing server (Port 9100) for serial printer
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/socat -u TCP4-LISTEN:9100,reuseaddr,fork OPEN:/dev/ttyUSB0
+# ExecStop=
+# User needs to be in group 'dialout'
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
