@@ -1,11 +1,12 @@
 [Unit]
-Description=Network printing server (Port 9100) for serial printer
+Description=Network printing server (Port 9100)
 After=network.target
 
 [Service]
+# tty serial speed needs to be set to the printer's setting
+ExecStartPre=/usr/bin/stty -F /dev/ttyUSB0 19200
 ExecStart=/usr/bin/socat -u TCP4-LISTEN:9100,reuseaddr,fork OPEN:/dev/ttyUSB0
 # ExecStop=
-# User needs to be in group 'dialout'
 User=root
 Group=root
 

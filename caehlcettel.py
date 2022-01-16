@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-import tempfile
+# import tempfile
 import sys
+import os
 from decimal import Decimal
 from datetime import datetime
+import requests
 
 from pyfiglet import Figlet
 from rich import box
@@ -23,6 +25,7 @@ MODEL = 'QL-700'
 PRINTER = 'usb://0x04f9:0x2042/000M3Z986950'
 
 VALUES =  [
+    '200,00',
     '100,00',
     '50,00',
     '20,00',
@@ -49,13 +52,13 @@ class Total(Widget):
                 continue
             sum += state[value] * Decimal(value.replace(',', '.'))
 
-        font = Figlet(font='xsansb')
+        font = Figlet(font='clb6x10')
         return Panel(
             font.renderText(str(sum).replace('.', ',')).rstrip("\n"), 
             title="Summe", 
             border_style="green",
             style=("black on green" if self.mouse_over else "white"),
-            height=14,
+            height=12,
             box=box.DOUBLE
         )
 
@@ -72,7 +75,7 @@ class DateTimeDisplay(Widget):
         self.set_interval(1, self.refresh)
 
     def render(self) -> Panel:
-        time = datetime.now().strftime("%c")
+        time = datetime.now().strftime("%Y-%m-%d %H:%M")
         return Panel(time, title="Datum / Uhrzeit")
 
 
@@ -89,12 +92,52 @@ class TitleDisplay(Widget):
 class HoverApp(App):
     """Demonstrates custom widgets"""
 
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.tab_index = []
+        self.rows = []
+        for value in VALUES:
+            name=f"input_{value}".replace(',', '')
+            self.tab_index.append(name)
+            row = IntegerInput(
+                name=f"input_{value}",
+                placeholder="0",
+                title=f"{value}",
+            )
+            attr_name=f"input_{value}".replace(',', '')
+            self.rows.append(row)
+            setattr(self, attr_name, row)
+        self.current_index = 0
+
     async def on_load(self, event) -> None:
         """Bind keys with the app loads (but before entering application mode)"""
         # await self.bind("b", "view.toggle('sidebar')", "Toggle sidebar")
         await self.bind("q", "quit", "Quit")
         await self.bind("p", "print", "Print & Quit")
+        await self.bind("ctrl+i", "next_tab_index", show=False)
+        # await self.bind("down", "next_tab_index", show=False)
+        await self.bind("enter", "next_tab_index", show=False)
+        await self.bind("shift+tab", "previous_tab_index", show=False)
 
+    async def action_next_tab_index(self) -> None:
+        """Changes the focus to the next form field"""
+        if self.current_index < len(self.tab_index) - 1:
+            self.current_index += 1
+        else:
+            self.current_index = 0
+
+        await getattr(self, self.tab_index[self.current_index]).focus()
+
+    async def action_previous_tab_index(self) -> None:
+        """Changes the focus to the previous form field"""
+        self.log(f"PREVIOUS {self.current_index}")
+        if self.current_index > 0:
+            self.current_index -= 1
+            await getattr(self, self.tab_index[self.current_index]).focus()
+
+    async def action_reset_focus(self) -> None:
+        self.current_index = -1
+        await self.header.focus()
 
     async def action_print(self):
         context = {
@@ -118,9 +161,42 @@ class HoverApp(App):
             })
         context['total'] = sum
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            print_zettel(context, tmpdir, BACKEND, MODEL, PRINTER)
-            sys.exit(0)
+        access_token = os.environ.get('ACCESS_TOKEN', None)
+        if not access_token:
+            raise ValueError("Environment variable ACCESS_TOKEN not set!")
+
+        api_base_url = os.environ.get('API_BASE_URL', None)
+        if not api_base_url:
+            raise ValueError('Environment variable API_BASE_URL not set!')
+
+        json_data = {
+            "username": "anonymer barbot",
+        }
+        for value in VALUES:
+            int_val = int(Decimal(value.replace(',', '.')) * 100)
+            json_name = f"number_of_{str(int_val).zfill(5)}"
+            json_data[json_name] = state[value]
+
+        resp = requests.post(
+            api_base_url + '/counting/',
+            json=json_data,
+            headers={
+                "Authorization": f"Token {access_token}"
+            }
+        )
+        resp.raise_for_status()
+        receipt_url = resp.json()['url']
+        print_resp = requests.get(
+            url=receipt_url + 'print/',
+            headers={
+                "Authorization": f"Token {access_token}"
+            }
+        )
+        print_resp.raise_for_status()
+        sys.exit(0)
+
+        #with tempfile.TemporaryDirectory() as tmpdir:
+        #    print_zettel(context, tmpdir, BACKEND, MODEL, PRINTER)
 
     
     async def on_mount(self) -> None:
@@ -129,25 +205,18 @@ class HoverApp(App):
             state[value] = 0
 
         self.title="c-base console-based caehlcettel"
-        rows = [
-            
-        ]
-        for value in VALUES:
-            row = IntegerInput(
-                name=f"input_{value}",
-                placeholder="0",
-                title=f"{value}",
-            )
-            rows.append(row)
         self.my_total = Total()
         self.my_dtd = DateTimeDisplay()
 
         await self.view.dock(Header(style="white on blue"), edge="top")
         await self.view.dock(Footer(), edge="bottom")
 
-        await self.view.dock(*rows, edge="top", size=3)
+        await self.view.dock(*self.rows, edge="top", size=3)
         await self.view.dock(self.my_dtd, edge='bottom', size=3)
-        await self.view.dock(self.my_total, edge='bottom', size=14)
+        await self.view.dock(self.my_total, edge='bottom', size=12)
+
+        # start at the first input field
+        await getattr(self, self.tab_index[0]).focus()
 
     async def handle_input_on_change(self, message) -> None:
         global state
