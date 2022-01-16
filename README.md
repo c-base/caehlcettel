@@ -3,6 +3,18 @@ Text-based interace for keeping track of cash
 
 ![Screenshot](screenshot.png)
 
+# Installing
+
+- Check out this repo using `git clone <repo>`
+- `sudo apt install libjpeg-dev libpng-dev`
+- `pip install poetry`
+- `cd <repo-name>`
+- `poetry install`
+
+# Running
+
+- `poetry run python caehlcettel.py`
+
 ## Testing the label printer
 
 ```

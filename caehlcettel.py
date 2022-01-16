@@ -15,7 +15,7 @@ from textual.app import App
 from textual.reactive import Reactive
 from textual.widget import Widget
 from textual.widgets import Header, Footer
-from rendering import print_zettel
+# from rendering import print_zettel
 
 
 BACKEND = 'pyusb'
