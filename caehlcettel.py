@@ -10,7 +10,7 @@ from pyfiglet import Figlet
 from rich import box
 from rich.panel import Panel
 from rich.prompt import Prompt
-from textual_inputs import IntegerInput
+from textual_inputs import IntegerInput, TextInput
 from textual.app import App
 from textual.reactive import Reactive
 from textual.widget import Widget
@@ -38,7 +38,9 @@ VALUES =  [
     '0,10'
 ]
 
-state = {}
+state = {
+    "barbot": None
+}
 
 
 class Total(Widget):
@@ -170,7 +172,7 @@ class HoverApp(App):
             raise ValueError('Environment variable API_BASE_URL not set!')
 
         json_data = {
-            "username": "anonymer barbot",
+            "username": state.get('barbot', "anonymer barbot"),
         }
         for value in VALUES:
             int_val = int(Decimal(value.replace(',', '.')) * 100)
@@ -194,10 +196,6 @@ class HoverApp(App):
         )
         print_resp.raise_for_status()
         sys.exit(0)
-
-        #with tempfile.TemporaryDirectory() as tmpdir:
-        #    print_zettel(context, tmpdir, BACKEND, MODEL, PRINTER)
-
     
     async def on_mount(self) -> None:
         # INIT state
@@ -207,11 +205,13 @@ class HoverApp(App):
         self.title="c-base console-based caehlcettel"
         self.my_total = Total()
         self.my_dtd = DateTimeDisplay()
+        self.input_barbot = TextInput(name="input_barbot", placeholder="Anonymer barbot", title="Barbot")
+        self.tab_index.append('input_barbot')
 
         await self.view.dock(Header(style="white on blue"), edge="top")
         await self.view.dock(Footer(), edge="bottom")
 
-        await self.view.dock(*self.rows, edge="top", size=3)
+        await self.view.dock(*(self.rows + [self.input_barbot]), edge="top", size=3)
         await self.view.dock(self.my_dtd, edge='bottom', size=3)
         await self.view.dock(self.my_total, edge='bottom', size=12)
 
