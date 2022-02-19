@@ -91,7 +91,7 @@ class TitleDisplay(Widget):
         return Panel(time, title="Datum / Uhrzeit")
 
 
-class HoverApp(App):
+class MainApp(App):
     """Demonstrates custom widgets"""
 
     def __init__(self, **kwargs) -> None:
@@ -114,8 +114,8 @@ class HoverApp(App):
     async def on_load(self, event) -> None:
         """Bind keys with the app loads (but before entering application mode)"""
         # await self.bind("b", "view.toggle('sidebar')", "Toggle sidebar")
-        await self.bind("q", "quit", "Quit")
-        await self.bind("p", "print", "Print & Quit")
+        await self.bind("ctrl+c", "quit", "Quit")
+        await self.bind("f10", "print", "Print & Quit")
         await self.bind("ctrl+i", "next_tab_index", show=False)
         # await self.bind("down", "next_tab_index", show=False)
         await self.bind("enter", "next_tab_index", show=False)
@@ -226,4 +226,4 @@ class HoverApp(App):
         self.log(f"Input: {message.sender.name} changed, val: {message.sender.value}, state={state}")
 
 
-HoverApp.run(log="textual.log")
+MainApp.run(log="textual.log")
