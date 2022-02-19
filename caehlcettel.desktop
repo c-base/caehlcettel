@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=caehlcettel
+Comment=c-base-bar-caehlcettel erstellen
+Icon=/usr/share/pixmaps/mc.xpm
+Exec=lxterminal -t "c-base caehlcettel" --geometry=80x55 --command ~/run_caehlcettel.sh
+Type=Application
+Encoding=UTF-8
+Terminal=false
+Categories=None;
