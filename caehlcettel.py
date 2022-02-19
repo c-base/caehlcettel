@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 # import tempfile
+import json
 import sys
 import os
 from decimal import Decimal
 from datetime import datetime
 import requests
-
 from pyfiglet import Figlet
 from rich import box
 from rich.panel import Panel
 from rich.prompt import Prompt
+from rich import print
 from textual_inputs import IntegerInput, TextInput
 from textual.app import App
 from textual.reactive import Reactive
 from textual.widget import Widget
 from textual.widgets import Header, Footer
+from rich.text import Text
 # from rendering import print_zettel
 
 
@@ -179,22 +181,40 @@ class MainApp(App):
             json_name = f"number_of_{str(int_val).zfill(5)}"
             json_data[json_name] = state[value]
 
+        counting_url = api_base_url + '/counting/'
         resp = requests.post(
-            api_base_url + '/counting/',
+            url=counting_url,
             json=json_data,
             headers={
                 "Authorization": f"Token {access_token}"
-            }
+            },
+            timeout=5
         )
+        if resp.status_code not in [200, 201, 204]:
+            self._exit_renderables.extend([
+                Text.from_markup(f"URL: [i blue underline]{counting_url}[/]\n"),
+                Text.from_markup(f'JSON content sent: {json.dumps(json_data, indent=2)}'),
+                Text.from_markup(f'HTTP status code: {resp.status_code}'),
+                Text.from_markup(f'HTTP response content: {resp.content}'),
+            ])
         resp.raise_for_status()
+
         receipt_url = resp.json()['url']
+        print_url = receipt_url + 'print/'
         print_resp = requests.get(
-            url=receipt_url + 'print/',
+            url=print_url,
             headers={
                 "Authorization": f"Token {access_token}"
-            }
+            },
+            timeout=5
         )
-        print_resp.raise_for_status()
+        if print_resp.status_code not in [200, 201, 204]:
+            self._exit_renderables.extend([
+                Text.from_markup(f"URL: [i blue underline]{print_url}[/]\n"),
+                Text.from_markup(f'HTTP status code: {print_resp.status_code}'),
+                Text.from_markup(f'HTTP response content: {print_resp.content}'),
+            ])
+        resp.raise_for_status()
         sys.exit(0)
     
     async def on_mount(self) -> None:
@@ -226,4 +246,8 @@ class MainApp(App):
         self.log(f"Input: {message.sender.name} changed, val: {message.sender.value}, state={state}")
 
 
-MainApp.run(log="textual.log")
+if __name__ == '__main__':
+    try:
+        MainApp.run(log="textual.log")
+    except Exception as err:
+        print(err)
