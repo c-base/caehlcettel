@@ -117,7 +117,7 @@ class MainApp(App):
         """Bind keys with the app loads (but before entering application mode)"""
         # await self.bind("b", "view.toggle('sidebar')", "Toggle sidebar")
         await self.bind("ctrl+c", "quit", "Quit")
-        await self.bind("f10", "print", "Print & Quit")
+        await self.bind("f11", "print", "Print & Quit")
         await self.bind("ctrl+i", "next_tab_index", show=False)
         # await self.bind("down", "next_tab_index", show=False)
         await self.bind("enter", "next_tab_index", show=False)
