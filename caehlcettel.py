@@ -179,7 +179,11 @@ class MainApp(App):
         for value in VALUES:
             int_val = int(Decimal(value.replace(',', '.')) * 100)
             json_name = f"number_of_{str(int_val).zfill(5)}"
-            json_data[json_name] = state[value]
+            # The API does not accept a value that is `null` or a negative value.
+            the_value = state[value]
+            if the_value is None or the_value < 0:
+                the_value = 0
+            json_data[json_name] = the_value
 
         counting_url = api_base_url + '/counting/'
         resp = requests.post(
