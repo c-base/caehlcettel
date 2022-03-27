@@ -173,9 +173,16 @@ class MainApp(App):
         if not api_base_url:
             raise ValueError('Environment variable API_BASE_URL not set!')
 
+
+        # Send a barbot name even if the field is empty.
+        barbot_name = state.get('barbot')
+        if not barbot_name:
+            barbot_name = 'Anonymer Barbot'
+
         json_data = {
-            "username": state.get('barbot', "anonymer barbot"),
+            "username": barbot_name,
         }
+        
         for value in VALUES:
             int_val = int(Decimal(value.replace(',', '.')) * 100)
             json_name = f"number_of_{str(int_val).zfill(5)}"
