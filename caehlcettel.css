@@ -1,0 +1,31 @@
+CountInput {
+    layout: horizontal;
+    background: $background;
+    border: none;
+    height: 3;
+    padding: 0;
+    margin-bottom: 0;
+}
+
+
+CountLabel {
+    width: 12;
+    margin-top: 1;
+    margin-right: 3;
+    dock: left;
+    text-align: right;
+}
+
+TotalContainer {
+    background: $background;
+    layout: horizontal;
+}
+
+Total {
+    padding-left: 1;
+    margin-top: 1;
+    height:12;
+    background: $background;
+    border: tall  $secondary;
+}
+

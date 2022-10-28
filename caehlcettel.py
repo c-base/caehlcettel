@@ -11,11 +11,14 @@ from rich import box
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich import print
-from textual_inputs import IntegerInput, TextInput
-from textual.app import App
+# from textual_inputs import IntegerInput, TextInput
 from textual.reactive import Reactive
+from textual.app import App, ComposeResult, RenderResult
 from textual.widget import Widget
-from textual.widgets import Header, Footer
+from textual.widgets import Header, Footer, Static, Input
+from textual.containers import Container, Horizontal
+
+
 from rich.text import Text
 # from rendering import print_zettel
 
@@ -44,28 +47,25 @@ state = {
     "barbot": None
 }
 
+class TotalContainer(Static):
 
-class Total(Widget):
+    def compose(self) -> ComposeResult:
+        yield CountLabel("Summe")
+        yield Total()
+
+class Total(Static):
 
     mouse_over = Reactive(False)
-
-    def render(self) -> Panel:
-        sum = Decimal(0.0)
-        for value in VALUES:
-            if state[value] is None:
-                continue
-            sum += state[value] * Decimal(value.replace(',', '.'))
-
+        
+    def render(self) -> RenderResult:
+        sum = Decimal(313.37)
+        #for value in VALUES:
+            # if state[value] is None:
+            #     continue
+            # sum += state[value] * Decimal(value.replace(',', '.'))
         font = Figlet(font='clb6x10')
-        return Panel(
-            font.renderText(str(sum).replace('.', ',')).rstrip("\n"), 
-            title="Summe", 
-            border_style="green",
-            style=("black on green" if self.mouse_over else "white"),
-            height=12,
-            box=box.DOUBLE
-        )
-
+        return font.renderText(f'{sum:.2f}'.replace('.', ',')).rstrip("\n")
+            
     def on_enter(self) -> None:
         self.mouse_over = True
 
@@ -83,7 +83,7 @@ class DateTimeDisplay(Widget):
         return Panel(time, title="Datum / Uhrzeit")
 
 
-class TitleDisplay(Widget):
+class TitleDisplay(Static):
 
     def on_mount(self):
         self.set_interval(1, self.refresh)
@@ -92,18 +92,47 @@ class TitleDisplay(Widget):
         time = datetime.now().strftime("%c")
         return Panel(time, title="Datum / Uhrzeit")
 
+class CountLabel(Static):
+    pass
+
+class CountInput(Static):
+    """An input widget."""
+
+    def __init__(self, *args, **kwargs):
+        self.label = kwargs.pop('label')
+        super().__init__(*args, **kwargs)
+
+    def compose(self) -> ComposeResult:
+        yield CountLabel(self.label)
+        yield Input(placeholder="0", value="")
+
 
 class MainApp(App):
     """Demonstrates custom widgets"""
 
-    def __init__(self, **kwargs) -> None:
+    CSS_PATH = "caehlcettel.css"
+    BINDINGS = [("Ctrl+C", "action_print", "Quit"), ("F11", "action_print", "Print and quit")]
+    
+    def compose(self) -> ComposeResult:
+        yield Header(show_clock=True)
+        value_fields = []
+        for value in VALUES:
+            title=f"{value}"
+            name=f"input_{value}".replace(',', '')
+            my_id=f"id_input_{value}".replace(',', '')
+            yield CountInput(name=name, id=my_id, label=title)
+        yield TotalContainer()
+        yield Footer()
+
+
+    def __do_not_init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.tab_index = []
         self.rows = []
         for value in VALUES:
             name=f"input_{value}".replace(',', '')
             self.tab_index.append(name)
-            row = IntegerInput(
+            row = Widget(     # IntegerInput(
                 name=f"input_{value}",
                 placeholder="0",
                 title=f"{value}",
@@ -113,7 +142,7 @@ class MainApp(App):
             setattr(self, attr_name, row)
         self.current_index = 0
 
-    async def on_load(self, event) -> None:
+    async def do_not_on_load(self, event) -> None:
         """Bind keys with the app loads (but before entering application mode)"""
         # await self.bind("b", "view.toggle('sidebar')", "Toggle sidebar")
         await self.bind("ctrl+c", "quit", "Quit")
@@ -228,7 +257,7 @@ class MainApp(App):
         resp.raise_for_status()
         sys.exit(0)
     
-    async def on_mount(self) -> None:
+    async def do_not_on_mount(self) -> None:
         # INIT state
         for value in VALUES:
             state[value] = 0
@@ -259,6 +288,7 @@ class MainApp(App):
 
 if __name__ == '__main__':
     try:
-        MainApp.run(log="textual.log")
+        app = MainApp()
+        app.run()
     except Exception as err:
         print(err)
