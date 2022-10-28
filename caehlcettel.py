@@ -96,7 +96,7 @@ class CountLabel(Static):
     pass
 
 class CountInput(Static):
-    """An input widget."""
+    """An input widget with a title."""
 
     def __init__(self, *args, **kwargs):
         self.label = kwargs.pop('label')
