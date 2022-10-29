@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-# import tempfile
 import json
 import sys
 import os
 from decimal import Decimal
 from datetime import datetime
+
 import requests
 from pyfiglet import Figlet
-from rich import box
-from rich.panel import Panel
-from rich.prompt import Prompt
 from rich import print
-# from textual_inputs import IntegerInput, TextInput
+from rich.panel import Panel
+from rich.text import Text
+
 from textual.app import App, ComposeResult, RenderResult
 from textual.binding import Binding
 from textual.widget import Widget
@@ -22,9 +21,7 @@ from textual.screen import Screen
 from textual import events
 from textual import log
 
-from rich.text import Text
 # from rendering import print_zettel
-
 
 BACKEND = 'pyusb'
 MODEL = 'QL-700'
@@ -32,35 +29,22 @@ MODEL = 'QL-700'
 # 0x04f9 is the vendor ID, 0x2042 is the model, then the serial number
 PRINTER = 'usb://0x04f9:0x2042/000M3Z986950'
 
-state = {
-    "barbot": None
-}
 
 class TotalContainer(Static):
-
     def compose(self) -> ComposeResult:
         yield CountLabel("Summe")
         yield Total()
 
-class Total(Static):
 
-    mouse_over = reactive(False)
+class Total(Static):
+    """
+    Big number display renders that shows a number in a figlet font.
+    """
     sum = reactive(0.0)
 
     def render(self) -> RenderResult:
-        # sum = Decimal(313.37)
-        #for value in VALUES:
-            # if state[value] is None:
-            #     continue
-            # sum += state[value] * Decimal(value.replace(',', '.'))
         font = Figlet(font='clb6x10')
         return font.renderText(f'{self.sum:.2f}'.replace('.', ',')).rstrip("\n")
-            
-    def on_enter(self) -> None:
-        self.mouse_over = True
-
-    def on_leave(self) -> None:
-        self.mouse_over = False
 
 
 class DateTimeDisplay(Widget):
@@ -82,12 +66,12 @@ class TitleDisplay(Static):
         time = datetime.now().strftime("%c")
         return Panel(time, title="Datum / Uhrzeit")
 
+
 class CountLabel(Static):
     pass
 
 
 class PositiveNumberInput(Input):
-
     def on_key(self, event: events.Key) -> None:
 
         try:
@@ -114,7 +98,6 @@ class CountInput(Static):
         self.default_bg = None
         super().__init__(*args, **kwargs)
         
-
     async def on_input_changed(self, message: Input.Changed) -> None:
         if self.default_bg is None:
             self.default_bg = self.styles.background
@@ -138,7 +121,7 @@ class CountInput(Static):
 class QuitScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Grid(
-            Static("Bitte Barbot eingegeben.", id="question"),
+            Static("Bitte Barbot eingeben.", id="question"),
             Button("Okay", variant="primary", id="okay_button"),
             id="dialog",
         )
@@ -148,6 +131,22 @@ class QuitScreen(Screen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.app.pop_screen()
+
+
+class DateTimeDisplay(Static):
+    DATE_FORMAT = "%Y-%m-%d %H:%M"
+    time = reactive('Titten Gna')
+
+    def on_mount(self) -> None:
+        self.update_time()
+        self.set_interval(1.0, self.update_time)
+
+    def update_time(self) -> None:
+        self.time = f'Datum / Uhrzeit:\n[b]{datetime.now().strftime(self.DATE_FORMAT)}[/]'
+
+    def watch_time(self, time: float) -> None:
+        """Called when the time attribute changes."""
+        self.update(time)
 
 
 class MainApp(App):
@@ -181,11 +180,39 @@ class MainApp(App):
             yield CountInput(name=name, id=my_id, label=title)
         yield TotalContainer()
         yield Input(name="barbot", id="barbot", placeholder='Barbot')
+        yield DateTimeDisplay('Datum / Uhrzeit')
         yield Footer()
 
     def on_mount(self) -> None:
-        self.title = 'caehlcettel'
+        self.title = 'c-base console-based caehlcettel'
         self.query_one(PositiveNumberInput).focus()
+
+    def collect_values(self):
+        """
+        Collect the entered values to get a JSON dict like
+        {
+            'umber_of_00500': 23,
+            ... 
+        }
+        """
+        json_data = {}
+        for number_input in self.query(PositiveNumberInput):
+            int_val = int(Decimal(number_input.id.rsplit('_', 1)[1]))
+            json_name = f"number_of_{str(int_val).zfill(5)}"
+            # The API does not accept a value that is `null` or a negative value.
+            the_value = 0
+            if number_input.value:
+                try:
+                    the_value = int(number_input.value)
+                    if the_value < 0:
+                        the_value = 0   # negative values not allowed.
+                except ValueError:
+                    pass
+            if the_value is None or the_value < 0:
+                the_value = 0
+            json_data[json_name] = the_value
+        # finished
+        return json_data
     
     def calculate_total(self):
         grand_total = Decimal(0)
@@ -220,25 +247,18 @@ class MainApp(App):
             'total': self.calculate_total(),
             'datetime': datetime.now().strftime('%Y-%m-%d, %H:%M Uhr'),
         }
-
+        # Get the access tokens for the REST-API
         access_token = os.environ.get('ACCESS_TOKEN', None)
         if not access_token:
             raise ValueError("Environment variable ACCESS_TOKEN not set!")
-
         api_base_url = os.environ.get('API_BASE_URL', None)
         if not api_base_url:
             raise ValueError('Environment variable API_BASE_URL not set!')
-
-       
-        if not barbot_name:
-            barbot_name = 'Anonymer Barbot'
-
-        json_data = {
-            "username": barbot_name,
-        }
-        
-
-        counting_url = api_base_url + '/counting/'
+        # Create the JSON object that will be sent to the API
+        json_data = self.collect_values()
+        json_data["username"] = barbot_name,
+        counting_url = f'{api_base_url}/counting/'
+        # Do the request
         resp = requests.post(
             url=counting_url,
             json=json_data,
@@ -273,34 +293,6 @@ class MainApp(App):
             ])
         resp.raise_for_status()
         sys.exit(0)
-    
-    async def do_not_on_mount(self) -> None:
-        # INIT state
-        for value in DENOMINATIONS:
-            state[value] = 0
-
-        self.title="c-base console-based caehlcettel"
-        self.my_total = Total()
-        self.my_dtd = DateTimeDisplay()
-        self.input_barbot = TextInput(name="input_barbot", placeholder="Anonymer barbot", title="Barbot")
-        self.tab_index.append('input_barbot')
-
-        await self.view.dock(Header(style="white on blue"), edge="top")
-        await self.view.dock(Footer(), edge="bottom")
-
-        await self.view.dock(*(self.rows + [self.input_barbot]), edge="top", size=3)
-        await self.view.dock(self.my_dtd, edge='bottom', size=3)
-        await self.view.dock(self.my_total, edge='bottom', size=12)
-
-        # start at the first input field
-        await getattr(self, self.tab_index[0]).focus()
-
-    async def handle_input_on_change(self, message) -> None:
-        global state
-        name = f"{message.sender.name}".replace('input_', '')
-        state[name] = message.sender.value
-        self.my_total.refresh()
-        self.log(f"Input: {message.sender.name} changed, val: {message.sender.value}, state={state}")
 
 
 if __name__ == '__main__':

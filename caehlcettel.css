@@ -26,12 +26,18 @@ Total {
     margin-top: 1;
     height:12;
     background: $background;
-    border: tall  $secondary;
+    border: tall $secondary;
 }
 
 #barbot {
     margin-top: 1;
     background: $background;
+}
+
+DateTimeDisplay {
+    margin-top: 1;
+    border: tall $success;
+    text-align: center;
 }
 
 /** Modal styles **/
