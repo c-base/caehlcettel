@@ -12,12 +12,15 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich import print
 # from textual_inputs import IntegerInput, TextInput
-from textual.reactive import Reactive
 from textual.app import App, ComposeResult, RenderResult
+from textual.binding import Binding
 from textual.widget import Widget
-from textual.widgets import Header, Footer, Static, Input
-from textual.containers import Container, Horizontal
-
+from textual.widgets import Header, Footer, Static, Input, Button
+from textual.reactive import reactive
+from textual.containers import Grid
+from textual.screen import Screen
+from textual import events
+from textual import log
 
 from rich.text import Text
 # from rendering import print_zettel
@@ -28,20 +31,6 @@ MODEL = 'QL-700'
 # Find out using lsusb or with the MacOS system report
 # 0x04f9 is the vendor ID, 0x2042 is the model, then the serial number
 PRINTER = 'usb://0x04f9:0x2042/000M3Z986950'
-
-VALUES =  [
-    '200,00',
-    '100,00',
-    '50,00',
-    '20,00',
-    '10,00',
-    '5,00',
-    '2,00',
-    '1,00',
-    '0,50',
-    '0,20',
-    '0,10'
-]
 
 state = {
     "barbot": None
@@ -55,16 +44,17 @@ class TotalContainer(Static):
 
 class Total(Static):
 
-    mouse_over = Reactive(False)
-        
+    mouse_over = reactive(False)
+    sum = reactive(0.0)
+
     def render(self) -> RenderResult:
-        sum = Decimal(313.37)
+        # sum = Decimal(313.37)
         #for value in VALUES:
             # if state[value] is None:
             #     continue
             # sum += state[value] * Decimal(value.replace(',', '.'))
         font = Figlet(font='clb6x10')
-        return font.renderText(f'{sum:.2f}'.replace('.', ',')).rstrip("\n")
+        return font.renderText(f'{self.sum:.2f}'.replace('.', ',')).rstrip("\n")
             
     def on_enter(self) -> None:
         self.mouse_over = True
@@ -95,104 +85,141 @@ class TitleDisplay(Static):
 class CountLabel(Static):
     pass
 
+
+class PositiveNumberInput(Input):
+
+    def on_key(self, event: events.Key) -> None:
+
+        try:
+            my_val = int(self.value)
+        except ValueError:
+            my_val = 0
+
+        if event.key == 'up':
+            self.value = str(my_val + 1)
+        if event.key == 'down':
+            if my_val == 0:
+                self.value = '0'
+            else:
+                self.value = str(my_val - 1)
+
+        return super().on_key(event)
+            
+
 class CountInput(Static):
     """An input widget with a title."""
 
     def __init__(self, *args, **kwargs):
         self.label = kwargs.pop('label')
+        self.default_bg = None
         super().__init__(*args, **kwargs)
+        
+
+    async def on_input_changed(self, message: Input.Changed) -> None:
+        if self.default_bg is None:
+            self.default_bg = self.styles.background
+        if message.value == '':
+            return
+        try:
+            if int(message.value) < 0:
+                raise ValueError("negative not allowed")
+        except ValueError:
+            # self.default_bg = self.styles.background
+            def reset_bg():
+                self.styles.background = self.default_bg
+            self.styles.background = 'red'
+            self.set_timer(1.0, reset_bg)
 
     def compose(self) -> ComposeResult:
         yield CountLabel(self.label)
-        yield Input(placeholder="0", value="")
+        yield PositiveNumberInput(placeholder="0", id=self.id)
+
+
+class QuitScreen(Screen):
+    def compose(self) -> ComposeResult:
+        yield Grid(
+            Static("Bitte Barbot eingegeben.", id="question"),
+            Button("Okay", variant="primary", id="okay_button"),
+            id="dialog",
+        )
+
+    def on_mount(self):
+        self.query_one('#okay_button').focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.app.pop_screen()
 
 
 class MainApp(App):
     """Demonstrates custom widgets"""
 
     CSS_PATH = "caehlcettel.css"
-    BINDINGS = [("Ctrl+C", "action_print", "Quit"), ("F11", "action_print", "Print and quit")]
-    
+    BINDINGS = [
+        Binding(key="Ctrl+C", action="quit", description="Quit"),
+        Binding(key="f11", action="print", description="Print and quit"),
+    ]
+    DENOMINATIONS =  [
+        ('200,00',  '20000'),
+        ('100,00', '10000'),
+        ('50,00', '5000'),
+        ('20,00', '2000'),
+        ('10,00', '1000'),
+        ('5,00', '500'),
+        ('2,00', '200'),
+        ('1,00', '100'),
+        ('0,50', '50'),
+        ('0,20', '20'),
+        ('0,10', '10'),
+    ]
+
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
-        value_fields = []
-        for value in VALUES:
-            title=f"{value}"
-            name=f"input_{value}".replace(',', '')
-            my_id=f"id_input_{value}".replace(',', '')
+        for denom, id_name in self.DENOMINATIONS:
+            title=f"{denom}"
+            name=f"input_{denom}".replace(',', '')
+            my_id=f"id_input_{id_name}".replace(',', '')
             yield CountInput(name=name, id=my_id, label=title)
         yield TotalContainer()
+        yield Input(name="barbot", id="barbot", placeholder='Barbot')
         yield Footer()
 
+    def on_mount(self) -> None:
+        self.title = 'caehlcettel'
+        self.query_one(PositiveNumberInput).focus()
+    
+    def calculate_total(self):
+        grand_total = Decimal(0)
+        for number_input in self.query(PositiveNumberInput):
+            denomination = Decimal(number_input.id.rsplit('_', 1)[1]) / 100
+            if number_input.value:
+                try:
+                    val = int(number_input.value)
+                    if val < 0:
+                        continue
+                    grand_total += denomination * val
+                except ValueError:
+                    pass
+        return grand_total
 
-    def __do_not_init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self.tab_index = []
-        self.rows = []
-        for value in VALUES:
-            name=f"input_{value}".replace(',', '')
-            self.tab_index.append(name)
-            row = Widget(     # IntegerInput(
-                name=f"input_{value}",
-                placeholder="0",
-                title=f"{value}",
-            )
-            attr_name=f"input_{value}".replace(',', '')
-            self.rows.append(row)
-            setattr(self, attr_name, row)
-        self.current_index = 0
+    async def on_input_changed(self, message: Input.Changed) -> None:
+        grand_total = self.calculate_total()
+        self.query_one(Total).sum = grand_total
 
-    async def do_not_on_load(self, event) -> None:
-        """Bind keys with the app loads (but before entering application mode)"""
-        # await self.bind("b", "view.toggle('sidebar')", "Toggle sidebar")
-        await self.bind("ctrl+c", "quit", "Quit")
-        await self.bind("f11", "print", "Print & Quit")
-        await self.bind("ctrl+i", "next_tab_index", show=False)
-        # await self.bind("down", "next_tab_index", show=False)
-        await self.bind("enter", "next_tab_index", show=False)
-        await self.bind("shift+tab", "previous_tab_index", show=False)
+    async def action_quit(self) -> None:
+        await self.shutdown()
 
-    async def action_next_tab_index(self) -> None:
-        """Changes the focus to the next form field"""
-        if self.current_index < len(self.tab_index) - 1:
-            self.current_index += 1
-        else:
-            self.current_index = 0
-
-        await getattr(self, self.tab_index[self.current_index]).focus()
-
-    async def action_previous_tab_index(self) -> None:
-        """Changes the focus to the previous form field"""
-        self.log(f"PREVIOUS {self.current_index}")
-        if self.current_index > 0:
-            self.current_index -= 1
-            await getattr(self, self.tab_index[self.current_index]).focus()
-
-    async def action_reset_focus(self) -> None:
-        self.current_index = -1
-        await self.header.focus()
-
-    async def action_print(self):
+    async def action_print(self) -> None:
+         # check if barbot name field is empty.
+        barbot_name = self.query_one('#barbot').value.strip()
+        if not barbot_name:
+            self.push_screen(QuitScreen())
+            return
+        
         context = {
             'state': [],
-            'total': None,
+            'total': self.calculate_total(),
             'datetime': datetime.now().strftime('%Y-%m-%d, %H:%M Uhr'),
         }
-        sum = Decimal(0)
-
-        for value in VALUES:
-            if state[value] is None:
-                val = 0
-            else:
-                val = state[value]
-            sub_total = val * Decimal(value.replace(',', '.'))
-            sum += sub_total
-            context['state'].append({
-                'label': value,
-                'amount': val,
-                'sub_total': sub_total
-            })
-        context['total'] = sum
 
         access_token = os.environ.get('ACCESS_TOKEN', None)
         if not access_token:
@@ -202,9 +229,7 @@ class MainApp(App):
         if not api_base_url:
             raise ValueError('Environment variable API_BASE_URL not set!')
 
-
-        # Send a barbot name even if the field is empty.
-        barbot_name = state.get('barbot')
+       
         if not barbot_name:
             barbot_name = 'Anonymer Barbot'
 
@@ -212,14 +237,6 @@ class MainApp(App):
             "username": barbot_name,
         }
         
-        for value in VALUES:
-            int_val = int(Decimal(value.replace(',', '.')) * 100)
-            json_name = f"number_of_{str(int_val).zfill(5)}"
-            # The API does not accept a value that is `null` or a negative value.
-            the_value = state[value]
-            if the_value is None or the_value < 0:
-                the_value = 0
-            json_data[json_name] = the_value
 
         counting_url = api_base_url + '/counting/'
         resp = requests.post(
@@ -259,7 +276,7 @@ class MainApp(App):
     
     async def do_not_on_mount(self) -> None:
         # INIT state
-        for value in VALUES:
+        for value in DENOMINATIONS:
             state[value] = 0
 
         self.title="c-base console-based caehlcettel"

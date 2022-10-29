@@ -29,3 +29,25 @@ Total {
     border: tall  $secondary;
 }
 
+#barbot {
+    margin-top: 1;
+    background: $background;
+}
+
+/** Modal styles **/
+#dialog {
+    grid-size: 1;
+    grid-gutter: 1 1;
+    margin: 1 8;
+}
+
+#question {
+    column-span: 2;
+    content-align: center bottom;
+    width: 100%;
+    height: 100%;
+}
+
+Button {
+    width: 100%;
+}
