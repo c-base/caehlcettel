@@ -256,7 +256,7 @@ class MainApp(App):
             raise ValueError('Environment variable API_BASE_URL not set!')
         # Create the JSON object that will be sent to the API
         json_data = self.collect_values()
-        json_data["username"] = barbot_name,
+        json_data["username"] = barbot_name
         counting_url = f'{api_base_url}/counting/'
         # Do the request
         resp = requests.post(
