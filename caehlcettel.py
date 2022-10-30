@@ -142,7 +142,7 @@ class DateTimeDisplay(Static):
         self.set_interval(1.0, self.update_time)
 
     def update_time(self) -> None:
-        self.time = f'Datum / Uhrzeit:\n[b]{datetime.now().strftime(self.DATE_FORMAT)}[/]'
+        self.time = f'Datum / Uhrzeit: [b]{datetime.now().strftime(self.DATE_FORMAT)}[/]'
 
     def watch_time(self, time: float) -> None:
         """Called when the time attribute changes."""
