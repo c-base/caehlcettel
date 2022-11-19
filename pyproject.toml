@@ -7,16 +7,16 @@ license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.9"
-textual = "^0.1.13"
+textual = "^0.2.1"
 pyfiglet = "^0.8.post1"
-textual-inputs = "^0.2.1"
 brother-ql = "^0.9.4"
 imgkit = "^1.2.2"
 Jinja2 = "^3.0.3"
 requests = "^2.27.1"
 escpos = "^1.9"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
+textual = {extras = ["dev"], version = "^0.2.1"}
 pytest = "^6.2.5"
 flake8 = "^4.0.1"
 

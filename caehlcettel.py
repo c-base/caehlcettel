@@ -1,74 +1,46 @@
 #!/usr/bin/env python3
-# import tempfile
+import json
 import sys
 import os
 from decimal import Decimal
 from datetime import datetime
-import requests
 
+import requests
 from pyfiglet import Figlet
-from rich import box
+from rich import print
 from rich.panel import Panel
-from rich.prompt import Prompt
-from textual_inputs import IntegerInput, TextInput
-from textual.app import App
-from textual.reactive import Reactive
+from rich.text import Text
+
+from textual.app import App, ComposeResult, RenderResult
+from textual.binding import Binding
 from textual.widget import Widget
-from textual.widgets import Header, Footer
+from textual.widgets import Header, Footer, Static, Input, Button
+from textual.reactive import reactive
+from textual.containers import Grid
+from textual.screen import Screen
+from textual import events
+from textual import log
+
 # from rendering import print_zettel
 
-
-BACKEND = 'pyusb'
-MODEL = 'QL-700'
-# Find out using lsusb or with the MacOS system report
-# 0x04f9 is the vendor ID, 0x2042 is the model, then the serial number
-PRINTER = 'usb://0x04f9:0x2042/000M3Z986950'
-
-VALUES =  [
-    '200,00',
-    '100,00',
-    '50,00',
-    '20,00',
-    '10,00',
-    '5,00',
-    '2,00',
-    '1,00',
-    '0,50',
-    '0,20',
-    '0,10'
-]
-
-state = {
-    "barbot": None
-}
+DEFAULT_PRINTER = 'bondruccer.cbrp3.c-base.org'
 
 
-class Total(Widget):
+class TotalContainer(Static):
+    def compose(self) -> ComposeResult:
+        yield CountLabel("Summe")
+        yield Total()
 
-    mouse_over = Reactive(False)
 
-    def render(self) -> Panel:
-        sum = Decimal(0.0)
-        for value in VALUES:
-            if state[value] is None:
-                continue
-            sum += state[value] * Decimal(value.replace(',', '.'))
+class Total(Static):
+    """
+    Big number display renders that shows a number in a figlet font.
+    """
+    sum = reactive(0.0)
 
+    def render(self) -> RenderResult:
         font = Figlet(font='clb6x10')
-        return Panel(
-            font.renderText(str(sum).replace('.', ',')).rstrip("\n"), 
-            title="Summe", 
-            border_style="green",
-            style=("black on green" if self.mouse_over else "white"),
-            height=12,
-            box=box.DOUBLE
-        )
-
-    def on_enter(self) -> None:
-        self.mouse_over = True
-
-    def on_leave(self) -> None:
-        self.mouse_over = False
+        return font.renderText(f'{self.sum:.2f}'.replace('.', ',')).rstrip("\n")
 
 
 class DateTimeDisplay(Widget):
@@ -81,7 +53,7 @@ class DateTimeDisplay(Widget):
         return Panel(time, title="Datum / Uhrzeit")
 
 
-class TitleDisplay(Widget):
+class TitleDisplay(Static):
 
     def on_mount(self):
         self.set_interval(1, self.refresh)
@@ -91,139 +63,246 @@ class TitleDisplay(Widget):
         return Panel(time, title="Datum / Uhrzeit")
 
 
+class CountLabel(Static):
+    pass
+
+
+class PositiveNumberInput(Input):
+    def on_key(self, event: events.Key) -> None:
+
+        try:
+            my_val = int(self.value)
+        except ValueError:
+            my_val = 0
+
+        if event.key == 'up':
+            self.value = str(my_val + 1)
+        if event.key == 'down':
+            if my_val == 0:
+                self.value = '0'
+            else:
+                self.value = str(my_val - 1)
+
+        return super().on_key(event)
+            
+
+class CountInput(Static):
+    """An input widget with a title."""
+
+    def __init__(self, *args, **kwargs):
+        self.label = kwargs.pop('label')
+        self.default_bg = None
+        super().__init__(*args, **kwargs)
+        
+    async def on_input_changed(self, message: Input.Changed) -> None:
+        if self.default_bg is None:
+            self.default_bg = self.styles.background
+        if message.value == '':
+            return
+        try:
+            if int(message.value) < 0:
+                raise ValueError("negative not allowed")
+        except ValueError:
+            # self.default_bg = self.styles.background
+            def reset_bg():
+                self.styles.background = self.default_bg
+            self.styles.background = 'red'
+            self.set_timer(1.0, reset_bg)
+
+    def compose(self) -> ComposeResult:
+        yield CountLabel(self.label)
+        yield PositiveNumberInput(placeholder="0", id=self.id)
+
+
+class QuitScreen(Screen):
+    def compose(self) -> ComposeResult:
+        yield Grid(
+            Static("Bitte Barbot eingeben.", id="question"),
+            Button("Okay", variant="primary", id="okay_button"),
+            id="dialog",
+        )
+
+    def on_mount(self):
+        self.query_one('#okay_button').focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.app.pop_screen()
+
+
+class DateTimeDisplay(Static):
+    DATE_FORMAT = "%Y-%m-%d %H:%M"
+    time = reactive('Titten Gna')
+
+    def on_mount(self) -> None:
+        self.update_time()
+        self.set_interval(1.0, self.update_time)
+
+    def update_time(self) -> None:
+        self.time = f'Datum / Uhrzeit: [b]{datetime.now().strftime(self.DATE_FORMAT)}[/]'
+
+    def watch_time(self, time: float) -> None:
+        """Called when the time attribute changes."""
+        self.update(time)
+
+
 class MainApp(App):
     """Demonstrates custom widgets"""
 
-    def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self.tab_index = []
-        self.rows = []
-        for value in VALUES:
-            name=f"input_{value}".replace(',', '')
-            self.tab_index.append(name)
-            row = IntegerInput(
-                name=f"input_{value}",
-                placeholder="0",
-                title=f"{value}",
-            )
-            attr_name=f"input_{value}".replace(',', '')
-            self.rows.append(row)
-            setattr(self, attr_name, row)
-        self.current_index = 0
+    CSS_PATH = "caehlcettel.css"
+    BINDINGS = [
+        Binding(key="Ctrl+C", action="quit", description="Quit"),
+        Binding(key="f11", action="print", description="Print and quit"),
+    ]
+    DENOMINATIONS =  [
+        # ('500,00',  '50000'),
+        ('200,00',  '20000'),
+        ('100,00', '10000'),
+        ('50,00', '5000'),
+        ('20,00', '2000'),
+        ('10,00', '1000'),
+        ('5,00', '500'),
+        ('2,00', '200'),
+        ('1,00', '100'),
+        ('0,50', '50'),
+        ('0,20', '20'),
+        ('0,10', '10'),
+        ('0,05', '5'),
+        ('0,02', '2'),
+        ('0,01', '1'),
+    ]
 
-    async def on_load(self, event) -> None:
-        """Bind keys with the app loads (but before entering application mode)"""
-        # await self.bind("b", "view.toggle('sidebar')", "Toggle sidebar")
-        await self.bind("ctrl+c", "quit", "Quit")
-        await self.bind("f10", "print", "Print & Quit")
-        await self.bind("ctrl+i", "next_tab_index", show=False)
-        # await self.bind("down", "next_tab_index", show=False)
-        await self.bind("enter", "next_tab_index", show=False)
-        await self.bind("shift+tab", "previous_tab_index", show=False)
+    def compose(self) -> ComposeResult:
+        yield Header(show_clock=True)
+        for denom, id_name in self.DENOMINATIONS:
+            title=f"{denom}"
+            name=f"input_{denom}".replace(',', '')
+            my_id=f"id_input_{id_name}".replace(',', '')
+            yield CountInput(name=name, id=my_id, label=title)
+        yield TotalContainer()
+        yield Input(name="barbot", id="barbot", placeholder='Barbot')
+        yield DateTimeDisplay('Datum / Uhrzeit')
+        yield Footer()
 
-    async def action_next_tab_index(self) -> None:
-        """Changes the focus to the next form field"""
-        if self.current_index < len(self.tab_index) - 1:
-            self.current_index += 1
-        else:
-            self.current_index = 0
+    def on_mount(self) -> None:
+        self.title = 'c-base console-based caehlcettel'
+        self.query_one(PositiveNumberInput).focus()
 
-        await getattr(self, self.tab_index[self.current_index]).focus()
+    def collect_values(self):
+        """
+        Collect the entered values to get a JSON dict like
+        {
+            'umber_of_00500': 23,
+            ... 
+        }
+        """
+        json_data = {}
+        for number_input in self.query(PositiveNumberInput):
+            int_val = int(Decimal(number_input.id.rsplit('_', 1)[1]))
+            json_name = f"number_of_{str(int_val).zfill(5)}"
+            # The API does not accept a value that is `null` or a negative value.
+            the_value = 0
+            if number_input.value:
+                try:
+                    the_value = int(number_input.value)
+                    if the_value < 0:
+                        the_value = 0   # negative values not allowed.
+                except ValueError:
+                    pass
+            if the_value is None or the_value < 0:
+                the_value = 0
+            json_data[json_name] = the_value
+        # finished
+        return json_data
+    
+    def calculate_total(self):
+        grand_total = Decimal(0)
+        for number_input in self.query(PositiveNumberInput):
+            denomination = Decimal(number_input.id.rsplit('_', 1)[1]) / 100
+            if number_input.value:
+                try:
+                    val = int(number_input.value)
+                    if val < 0:
+                        continue
+                    grand_total += denomination * val
+                except ValueError:
+                    pass
+        return grand_total
 
-    async def action_previous_tab_index(self) -> None:
-        """Changes the focus to the previous form field"""
-        self.log(f"PREVIOUS {self.current_index}")
-        if self.current_index > 0:
-            self.current_index -= 1
-            await getattr(self, self.tab_index[self.current_index]).focus()
+    async def on_input_changed(self, message: Input.Changed) -> None:
+        grand_total = self.calculate_total()
+        self.query_one(Total).sum = grand_total
 
-    async def action_reset_focus(self) -> None:
-        self.current_index = -1
-        await self.header.focus()
+    async def action_quit(self) -> None:
+        await self.shutdown()
 
-    async def action_print(self):
+    async def action_print(self) -> None:
+         # check if barbot name field is empty.
+        barbot_name = self.query_one('#barbot').value.strip()
+        if not barbot_name:
+            self.push_screen(QuitScreen())
+            return
+        
         context = {
             'state': [],
-            'total': None,
+            'total': self.calculate_total(),
             'datetime': datetime.now().strftime('%Y-%m-%d, %H:%M Uhr'),
         }
-        sum = Decimal(0)
-
-        for value in VALUES:
-            if state[value] is None:
-                val = 0
-            else:
-                val = state[value]
-            sub_total = val * Decimal(value.replace(',', '.'))
-            sum += sub_total
-            context['state'].append({
-                'label': value,
-                'amount': val,
-                'sub_total': sub_total
-            })
-        context['total'] = sum
-
+        # Get the access tokens for the REST-API
         access_token = os.environ.get('ACCESS_TOKEN', None)
         if not access_token:
             raise ValueError("Environment variable ACCESS_TOKEN not set!")
-
         api_base_url = os.environ.get('API_BASE_URL', None)
         if not api_base_url:
             raise ValueError('Environment variable API_BASE_URL not set!')
-
-        json_data = {
-            "username": state.get('barbot', "anonymer barbot"),
-        }
-        for value in VALUES:
-            int_val = int(Decimal(value.replace(',', '.')) * 100)
-            json_name = f"number_of_{str(int_val).zfill(5)}"
-            json_data[json_name] = state[value]
-
+        # Create the JSON object that will be sent to the API
+        json_data = self.collect_values()
+        json_data["username"] = barbot_name
+        # json_data["count_type"] = count_type
+        json_data["count_type"] = os.environ.get('COUNT_TYPE', 'tresencasse')
+        counting_url = f'{api_base_url}/count/'
+        # Do the request
         resp = requests.post(
-            api_base_url + '/counting/',
+            url=counting_url,
             json=json_data,
             headers={
                 "Authorization": f"Token {access_token}"
-            }
+            },
+            timeout=5
         )
+        if resp.status_code not in [200, 201, 204]:
+            self._exit_renderables.extend([
+                Text.from_markup(f"URL: [i blue underline]{counting_url}[/]\n"),
+                Text.from_markup(f'JSON content sent: {json.dumps(json_data, indent=2)}'),
+                Text.from_markup(f'HTTP status code: {resp.status_code}'),
+                Text.from_markup(f'HTTP response content: {resp.content}'),
+            ])
         resp.raise_for_status()
+
         receipt_url = resp.json()['url']
+        print_url = receipt_url + 'print/'
         print_resp = requests.get(
-            url=receipt_url + 'print/',
+            url=print_url,
+            params={
+                'printer': os.environ.get('PRINTER_HOSTNAME', DEFAULT_PRINTER),
+            },
             headers={
                 "Authorization": f"Token {access_token}"
-            }
+            },
+            timeout=5
         )
-        print_resp.raise_for_status()
-        sys.exit(0)
-    
-    async def on_mount(self) -> None:
-        # INIT state
-        for value in VALUES:
-            state[value] = 0
-
-        self.title="c-base console-based caehlcettel"
-        self.my_total = Total()
-        self.my_dtd = DateTimeDisplay()
-        self.input_barbot = TextInput(name="input_barbot", placeholder="Anonymer barbot", title="Barbot")
-        self.tab_index.append('input_barbot')
-
-        await self.view.dock(Header(style="white on blue"), edge="top")
-        await self.view.dock(Footer(), edge="bottom")
-
-        await self.view.dock(*(self.rows + [self.input_barbot]), edge="top", size=3)
-        await self.view.dock(self.my_dtd, edge='bottom', size=3)
-        await self.view.dock(self.my_total, edge='bottom', size=12)
-
-        # start at the first input field
-        await getattr(self, self.tab_index[0]).focus()
-
-    async def handle_input_on_change(self, message) -> None:
-        global state
-        name = f"{message.sender.name}".replace('input_', '')
-        state[name] = message.sender.value
-        self.my_total.refresh()
-        self.log(f"Input: {message.sender.name} changed, val: {message.sender.value}, state={state}")
+        if print_resp.status_code not in [200, 201, 204]:
+            self._exit_renderables.extend([
+                Text.from_markup(f"URL: [i blue underline]{print_url}[/]\n"),
+                Text.from_markup(f'HTTP status code: {print_resp.status_code}'),
+                Text.from_markup(f'HTTP response content: {print_resp.content}'),
+            ])
+        resp.raise_for_status()
+        self.exit()
 
 
-MainApp.run(log="textual.log")
+if __name__ == '__main__':
+    try:
+        app = MainApp()
+        app.run()
+    except Exception as err:
+        print(err)
