@@ -23,11 +23,7 @@ from textual import log
 
 # from rendering import print_zettel
 
-BACKEND = 'pyusb'
-MODEL = 'QL-700'
-# Find out using lsusb or with the MacOS system report
-# 0x04f9 is the vendor ID, 0x2042 is the model, then the serial number
-PRINTER = 'usb://0x04f9:0x2042/000M3Z986950'
+DEFAULT_PRINTER = 'bondruccer.cbrp3.c-base.org'
 
 
 class TotalContainer(Static):
@@ -158,6 +154,7 @@ class MainApp(App):
         Binding(key="f11", action="print", description="Print and quit"),
     ]
     DENOMINATIONS =  [
+        # ('500,00',  '50000'),
         ('200,00',  '20000'),
         ('100,00', '10000'),
         ('50,00', '5000'),
@@ -169,6 +166,9 @@ class MainApp(App):
         ('0,50', '50'),
         ('0,20', '20'),
         ('0,10', '10'),
+        ('0,05', '5'),
+        ('0,02', '2'),
+        ('0,01', '1'),
     ]
 
     def compose(self) -> ComposeResult:
@@ -257,7 +257,9 @@ class MainApp(App):
         # Create the JSON object that will be sent to the API
         json_data = self.collect_values()
         json_data["username"] = barbot_name
-        counting_url = f'{api_base_url}/counting/'
+        # json_data["count_type"] = count_type
+        json_data["count_type"] = os.environ.get('COUNT_TYPE', 'tresencasse')
+        counting_url = f'{api_base_url}/count/'
         # Do the request
         resp = requests.post(
             url=counting_url,
@@ -280,6 +282,9 @@ class MainApp(App):
         print_url = receipt_url + 'print/'
         print_resp = requests.get(
             url=print_url,
+            params={
+                'printer': os.environ.get('PRINTER_HOSTNAME', DEFAULT_PRINTER),
+            },
             headers={
                 "Authorization": f"Token {access_token}"
             },
@@ -292,7 +297,7 @@ class MainApp(App):
                 Text.from_markup(f'HTTP response content: {print_resp.content}'),
             ])
         resp.raise_for_status()
-        sys.exit(0)
+        self.exit()
 
 
 if __name__ == '__main__':
