@@ -227,7 +227,7 @@ class MainApp(App):
         for number_input in self.query(PositiveNumberInput):
             form_field_id = number_input.id.rsplit('_', 1)[1]
             if form_field_id.isnumeric():
-                int_val = int(Decimal())
+                int_val = int(Decimal(form_field_id))
                 json_name = f"number_of_{str(int_val).zfill(5)}"
             else:
                 json_name = number_input.id.replace('id_input_', '')
