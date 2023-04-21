@@ -185,7 +185,7 @@ class MainApp(App):
 
     def on_mount(self) -> None:
         self.title = 'c-base console-based caehlcettel'
-        self.query_one(PositiveNumberInput).focus()
+        self.query(PositiveNumberInput)[0].focus()
 
     def collect_values(self):
         """
