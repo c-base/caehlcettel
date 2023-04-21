@@ -191,7 +191,7 @@ class MainApp(App):
         """
         Collect the entered values to get a JSON dict like
         {
-            'umber_of_00500': 23,
+            'number_of_00500': 23,
             ... 
         }
         """
