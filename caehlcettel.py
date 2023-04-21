@@ -161,9 +161,10 @@ def generate_denominations():
             ('0,50', '50'),
             ('0,20', '20'),
             ('0,10', '10'),
-            ('0,05', '5'),
-            ('0,02', '2'),
-            ('0,01', '1'),
+            # not needed at the bar
+            # ('0,05', '5'),
+            # ('0,02', '2'),
+            # ('0,01', '1'),
         ]
     elif count_type == 'board':
         return [
@@ -184,6 +185,22 @@ def generate_denominations():
             ('0,01', '1'),
             ('Safebag', 'safebag_in_cent'),
         ]
+    elif count_type == 'replicator':
+        return [
+            ('200,00',  '20000'),
+            ('100,00', '10000'),
+            ('50,00', '5000'),
+            ('20,00', '2000'),
+            ('10,00', '1000'),
+            ('5,00', '500'),
+            ('2,00', '200'),
+            ('1,00', '100'),
+            ('0,50', '50'),
+            ('0,20', '20'),
+            ('0,10', '10'),
+        ]
+    else:
+        raise Exception("COUNT_TYPE=`%s` not supported")
 
 
 class MainApp(App):
