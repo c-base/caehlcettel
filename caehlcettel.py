@@ -145,6 +145,47 @@ class DateTimeDisplay(Static):
         self.update(time)
 
 
+def generate_denominations():
+    count_type = os.environ.get('COUNT_TYPE', 'tresencasse')
+    if count_type == 'tresenkasse':
+        return [
+            # ('500,00',  '50000'),
+            ('200,00',  '20000'),
+            ('100,00', '10000'),
+            ('50,00', '5000'),
+            ('20,00', '2000'),
+            ('10,00', '1000'),
+            ('5,00', '500'),
+            ('2,00', '200'),
+            ('1,00', '100'),
+            ('0,50', '50'),
+            ('0,20', '20'),
+            ('0,10', '10'),
+            ('0,05', '5'),
+            ('0,02', '2'),
+            ('0,01', '1'),
+        ]
+    elif count_type == 'board':
+        return [
+            # ('500,00',  '50000'),
+            ('200,00',  '20000'),
+            ('100,00', '10000'),
+            ('50,00', '5000'),
+            ('20,00', '2000'),
+            ('10,00', '1000'),
+            ('5,00', '500'),
+            ('2,00', '200'),
+            ('1,00', '100'),
+            ('0,50', '50'),
+            ('0,20', '20'),
+            ('0,10', '10'),
+            ('0,05', '5'),
+            ('0,02', '2'),
+            ('0,01', '1'),
+            ('Safebag', 'safebag_in_cent'),
+        ]
+
+
 class MainApp(App):
     """Demonstrates custom widgets"""
 
@@ -153,30 +194,17 @@ class MainApp(App):
         Binding(key="Ctrl+C", action="quit", description="Quit"),
         Binding(key="f11", action="print", description="Print and quit"),
     ]
-    DENOMINATIONS =  [
-        # ('500,00',  '50000'),
-        ('200,00',  '20000'),
-        ('100,00', '10000'),
-        ('50,00', '5000'),
-        ('20,00', '2000'),
-        ('10,00', '1000'),
-        ('5,00', '500'),
-        ('2,00', '200'),
-        ('1,00', '100'),
-        ('0,50', '50'),
-        ('0,20', '20'),
-        ('0,10', '10'),
-        ('0,05', '5'),
-        ('0,02', '2'),
-        ('0,01', '1'),
-    ]
+    DENOMINATIONS = generate_denominations()
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         for denom, id_name in self.DENOMINATIONS:
             title=f"{denom}"
             name=f"input_{denom}".replace(',', '')
-            my_id=f"id_input_{id_name}".replace(',', '')
+            if id_name.isnumeric():
+                my_id=f"id_input_{id_name}".replace(',', '')
+            else:
+                my_id=f"id_input_{id_name}"
             yield CountInput(name=name, id=my_id, label=title)
         yield TotalContainer()
         yield Input(name="barbot", id="barbot", placeholder='Barbot')
@@ -197,8 +225,13 @@ class MainApp(App):
         """
         json_data = {}
         for number_input in self.query(PositiveNumberInput):
-            int_val = int(Decimal(number_input.id.rsplit('_', 1)[1]))
-            json_name = f"number_of_{str(int_val).zfill(5)}"
+            form_field_id = number_input.id.rsplit('_', 1)[1]
+            if form_field_id.isnumeric():
+                int_val = int(Decimal())
+                json_name = f"number_of_{str(int_val).zfill(5)}"
+            else:
+                json_name = number_input.id.replace('id_input_', '')
+            
             # The API does not accept a value that is `null` or a negative value.
             the_value = 0
             if number_input.value:
@@ -215,9 +248,14 @@ class MainApp(App):
         return json_data
     
     def calculate_total(self):
-        grand_total = Decimal(0)
+        grand_total = Decimal(0)        
         for number_input in self.query(PositiveNumberInput):
-            denomination = Decimal(number_input.id.rsplit('_', 1)[1]) / 100
+            field_id = number_input.id.rsplit('_', 1)[1]
+            if field_id.isnumeric():
+                denomination = Decimal(field_id) / 100
+            else:
+                denomination = Decimal('0.01')
+            # Now
             if number_input.value:
                 try:
                     val = int(number_input.value)
