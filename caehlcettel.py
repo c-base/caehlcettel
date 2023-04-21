@@ -147,7 +147,7 @@ class DateTimeDisplay(Static):
 
 def generate_denominations():
     count_type = os.environ.get('COUNT_TYPE', 'tresencasse')
-    if count_type == 'tresenkasse':
+    if count_type == 'tresencasse':
         return [
             # ('500,00',  '50000'),
             ('200,00',  '20000'),
